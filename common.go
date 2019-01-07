@@ -10,8 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 )
 
 const (
@@ -189,11 +192,16 @@ func (w WebDriverCore) doInternal(params interface{}, method, url string) (strin
 			return "", nil, err
 		}
 	}
-	request, err := newRequest(method, url, jsonParams)
+
+	var client = &http.Client{
+		Timeout: time.Second * 60,
+	}
+
+	request, err := http.NewRequest(method, url, strings.NewReader(string(jsonParams)))
 	if err != nil {
 		return "", nil, err
 	}
-	response, err := http.DefaultClient.Do(request)
+	response, err := client.Do(request)
 	if err != nil {
 		return "", nil, err
 	}
@@ -221,6 +229,7 @@ func (w WebDriverCore) doInternal(params interface{}, method, url string) (strin
 	jr := &jsonResponse{}
 	err = json.Unmarshal(buf, jr)
 	if err != nil && response.StatusCode == 200 {
+		log.Printf("webdriver command err: %v\n buf: %v\n", err, string(buf))
 		return "", nil, errors.New("error: response must be a JSON object")
 	}
 	//if err = json.Unmarshal(buf, jr); err != nil {

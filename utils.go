@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-var debug = false
+var debug = true
 
 func debugprint(message interface{}) {
 	if debug {
