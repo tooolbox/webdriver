@@ -6,14 +6,13 @@ package webdriver
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"log"
+	"io"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -193,14 +192,21 @@ func (w WebDriverCore) doInternal(params interface{}, method, url string) (strin
 		}
 	}
 
+	transport := &http.Transport{
+		TLSClientConfig:    &tls.Config{InsecureSkipVerify: true},
+		DisableKeepAlives:  true,
+		DisableCompression: true,
+	}
 	var client = &http.Client{
-		Timeout: time.Second * 60,
+		Timeout:   time.Second * 30,
+		Transport: transport,
 	}
 
-	request, err := http.NewRequest(method, url, strings.NewReader(string(jsonParams)))
+	request, err := newRequest(method, url, jsonParams)
 	if err != nil {
 		return "", nil, err
 	}
+
 	response, err := client.Do(request)
 	if err != nil {
 		return "", nil, err
@@ -215,12 +221,13 @@ func (w WebDriverCore) doInternal(params interface{}, method, url string) (strin
 		}
 		return w.doInternal(nil, "GET", url.String())
 	}
-
-	buf, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		return "", nil, err
+	var _buf bytes.Buffer
+	if _, err := io.Copy(&_buf, response.Body); err != nil {
+		debugprint(err)
 	}
-	head := string(buf)
+
+	buf := _buf.Bytes()
+	head := _buf.String()
 	if len(buf) > 1024 {
 		head = fmt.Sprintf("%s ...%d more bytes", string(buf[0:1024]), len(buf)-1024)
 	}
@@ -229,7 +236,6 @@ func (w WebDriverCore) doInternal(params interface{}, method, url string) (strin
 	jr := &jsonResponse{}
 	err = json.Unmarshal(buf, jr)
 	if err != nil && response.StatusCode == 200 {
-		log.Printf("webdriver command err: %v\n buf: %v\n", err, string(buf))
 		return "", nil, errors.New("error: response must be a JSON object")
 	}
 	//if err = json.Unmarshal(buf, jr); err != nil {

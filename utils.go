@@ -8,13 +8,18 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"runtime"
 	"time"
 )
 
-var debug = true
+var debug = false
 
 func debugprint(message interface{}) {
+	d := os.Getenv("DEBUG")
+	if d == "true" {
+		debug = true
+	}
 	if debug {
 		pc, _, line, ok := runtime.Caller(1)
 		if ok {
