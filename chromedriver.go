@@ -73,7 +73,7 @@ func (d *ChromeDriver) Start() error {
 	d.url = fmt.Sprintf("http://127.0.0.1:%d%s", d.Port, d.BaseUrl)
 	var switches []string
 	switches = append(switches, "-port="+strconv.Itoa(d.Port))
-	switches = append(switches, "-log-path="+d.LogPath)
+	// switches = append(switches, "-log-path="+d.LogPath)
 	switches = append(switches, "-http-threads="+strconv.Itoa(d.Threads))
 	if d.BaseUrl != "" {
 		switches = append(switches, "-url-base="+d.BaseUrl)
