@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -221,28 +220,13 @@ func (w WebDriverCore) doInternal(params interface{}, method, url string) (strin
 		}
 		return w.doInternal(nil, "GET", url.String())
 	}
-	var _buf bytes.Buffer
-	if _, err := io.Copy(&_buf, response.Body); err != nil {
+
+	decoder := json.NewDecoder(response.Body)
+	var jr jsonResponse
+	err = decoder.Decode(&jr)
+	if err != nil {
 		debugprint(err)
-	}
-
-	buf := _buf.Bytes()
-	head := _buf.String()
-	if len(buf) > 1024 {
-		head = fmt.Sprintf("%s ...%d more bytes", string(buf[0:1024]), len(buf)-1024)
-	}
-	debugprint("<< " + head)
-
-	jr := &jsonResponse{}
-	err = json.Unmarshal(buf, jr)
-	if err != nil && response.StatusCode == 200 {
 		return "", nil, errors.New("error: response must be a JSON object")
-	}
-	//if err = json.Unmarshal(buf, jr); err != nil {
-	//	return "", nil, errors.New("error: response must be a JSON object: "+err.Error())
-	//}
-	if response.StatusCode >= 400 || jr.Status != 0 {
-		return "", nil, parseError(response.StatusCode, *jr)
 	}
 	sessionId := string(bytes.Trim(jr.RawSessionId, "{}\""))
 	return sessionId, []byte(jr.RawValue), nil

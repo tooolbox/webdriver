@@ -46,7 +46,7 @@ func NewChromeDriver(path string) *ChromeDriver {
 	d.Port = 9515
 	d.BaseUrl = ""
 	d.Threads = 4
-	d.LogPath = "chromedriver.log"
+	d.LogPath = ""
 	d.StartTimeout = 20 * time.Second
 	return d
 }
