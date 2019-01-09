@@ -6,7 +6,7 @@ package webdriver
 
 import (
 	"bytes"
-	"crypto/tls"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -191,20 +191,19 @@ func (w WebDriverCore) doInternal(params interface{}, method, url string) (strin
 		}
 	}
 
-	transport := &http.Transport{
-		TLSClientConfig:    &tls.Config{InsecureSkipVerify: true},
-		DisableKeepAlives:  true,
-		DisableCompression: true,
-	}
 	var client = &http.Client{
-		Timeout:   time.Second * 30,
-		Transport: transport,
+		Timeout: time.Second * 10,
 	}
 
 	request, err := newRequest(method, url, jsonParams)
 	if err != nil {
 		return "", nil, err
 	}
+
+	ctx, cancel := context.WithTimeout(request.Context(), 10*time.Second)
+	defer cancel()
+
+	request = request.WithContext(ctx)
 
 	response, err := client.Do(request)
 	if err != nil {
