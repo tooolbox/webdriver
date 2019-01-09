@@ -193,7 +193,7 @@ func (w WebDriverCore) doInternal(params interface{}, method, url string) (strin
 		return w.doInternal(nil, "GET", url.String())
 	}
 
-	lr := io.LimitReader(response.Body, 262144)
+	lr := io.LimitReader(response.Body, 362145) //TODO
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(lr)
 
