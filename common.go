@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -105,41 +106,10 @@ func (e CommandError) Error() string {
 	return m
 }
 
-//type matching the structure standard JSON object response.
 type jsonResponse struct {
-	RawSessionId json.RawMessage `json:"sessionId"`
+	RawSessionID string          `json:"sessionId"`
 	Status       int             `json:"status"`
 	RawValue     json.RawMessage `json:"value"`
-}
-
-func parseError(c int, jr jsonResponse) error {
-	var responseCodeError string
-	switch c {
-	// workaround: chromedriver could returns 200 code on errors
-	case 200:
-	case 400:
-		responseCodeError = "400: Missing Command Parameters"
-	case 404:
-		responseCodeError = "404: Unknown command/Resource Not Found"
-	case 405:
-		responseCodeError = "405: Invalid Command Method"
-	case 500:
-		responseCodeError = "500: Failed Command"
-	case 501:
-		responseCodeError = "501: Unimplemented Command"
-	default:
-		responseCodeError = "Unknown error"
-	}
-	if jr.Status == 0 {
-		return &CommandError{StatusCode: -1, ErrorType: responseCodeError}
-	}
-	commandError := &CommandError{StatusCode: jr.Status, ErrorType: responseCodeError}
-	err := json.Unmarshal(jr.RawValue, commandError)
-	if err != nil {
-		// workaround: firefox could returns a string instead of a JSON object on errors
-		commandError.Message = string(jr.RawValue)
-	}
-	return commandError
 }
 
 func isRedirect(response *http.Response) bool {
@@ -209,6 +179,9 @@ func (w WebDriverCore) doInternal(params interface{}, method, url string) (strin
 	if err != nil {
 		return "", nil, err
 	}
+
+	defer response.Body.Close()
+
 	debugprint("StatusCode: " + strconv.Itoa(response.StatusCode))
 	//http.Client doesn't follow POST redirected (/session command)
 	if method == "POST" && isRedirect(response) {
@@ -220,15 +193,20 @@ func (w WebDriverCore) doInternal(params interface{}, method, url string) (strin
 		return w.doInternal(nil, "GET", url.String())
 	}
 
-	decoder := json.NewDecoder(response.Body)
-	var jr jsonResponse
-	err = decoder.Decode(&jr)
+	lr := io.LimitReader(response.Body, 262144)
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(lr)
+
+	jr := jsonResponse{}
+	err = json.Unmarshal(buf.Bytes(), &jr)
 	if err != nil {
 		debugprint(err)
 		return "", nil, errors.New("error: response must be a JSON object")
 	}
-	sessionId := string(bytes.Trim(jr.RawSessionId, "{}\""))
-	return sessionId, []byte(jr.RawValue), nil
+
+	debugprint("<< " + jr.RawSessionID + " " + string(jr.RawValue))
+
+	return jr.RawSessionID, []byte(jr.RawValue), nil
 }
 
 //Query the server's status.
