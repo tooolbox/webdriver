@@ -6,14 +6,13 @@ package webdriver
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
-	"time"
+	"strings"
 )
 
 const (
@@ -117,17 +116,18 @@ func isRedirect(response *http.Response) bool {
 	return r == 302 || r == 303
 }
 
-func newRequest(method, url string, data []byte) (*http.Request, error) {
-	request, err := http.NewRequest(method, url, bytes.NewBuffer(data))
+func newRequest(method, path string, data []byte) (*http.Request, error) {
+	request, err := http.NewRequest(method, path, bytes.NewBuffer(data))
 	if err != nil {
 		return nil, err
 	}
 	if method == "POST" {
 		request.Header.Add("Content-Type", "application/json;charset=utf-8")
 	}
-	//TODO add png format for screenshots
+	// request.Header.Set("Connection", "keep-alive")
 	request.Header.Set("Accept", "application/json")
-	request.Header.Set("Accept-charset", "utf-8")
+	request.Header.Set("Accept-Charset", "utf-8")
+	// request.Header.Set("Accept-Encoding", "gzip,deflate")
 	return request, nil
 }
 
@@ -143,12 +143,13 @@ func (w WebDriverCore) do(params interface{}, method, urlFormat string, urlParam
 		return "", nil, errors.New("invalid method: " + method)
 	}
 	url := w.url + fmt.Sprintf(urlFormat, urlParams...)
-	return w.doInternal(params, method, url)
+	sessionID, data, err := w.doInternal(params, method, url)
+	return sessionID, data, err
 }
 
 //communicate with the server.
-func (w WebDriverCore) doInternal(params interface{}, method, url string) (string, []byte, error) {
-	debugprint(">> " + method + " " + url)
+func (w WebDriverCore) doInternal(params interface{}, method, path string) (string, []byte, error) {
+	debugprint(">> " + method + " " + path)
 	var jsonParams []byte
 	var err error
 	if method == "POST" {
@@ -161,26 +162,29 @@ func (w WebDriverCore) doInternal(params interface{}, method, url string) (strin
 		}
 	}
 
+	// proxyUrl, err := url.Parse("http://localhost:8888")
 	var client = &http.Client{
-		Timeout: time.Second * 10,
+		// Timeout:   time.Second * 10,
+		Transport: &http.Transport{
+			// Proxy:             http.ProxyURL(proxyUrl),
+			DisableKeepAlives: true,
+		},
 	}
 
-	request, err := newRequest(method, url, jsonParams)
+	request, err := newRequest(method, path, jsonParams)
 	if err != nil {
 		return "", nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(request.Context(), 10*time.Second)
-	defer cancel()
+	// ctx, cancel := context.WithTimeout(request.Context(), 10*time.Second)
+	// defer cancel()
 
-	request = request.WithContext(ctx)
+	// request = request.WithContext(ctx)
 
 	response, err := client.Do(request)
 	if err != nil {
 		return "", nil, err
 	}
-
-	defer response.Body.Close()
 
 	debugprint("StatusCode: " + strconv.Itoa(response.StatusCode))
 	//http.Client doesn't follow POST redirected (/session command)
@@ -193,20 +197,31 @@ func (w WebDriverCore) doInternal(params interface{}, method, url string) (strin
 		return w.doInternal(nil, "GET", url.String())
 	}
 
-	lr := io.LimitReader(response.Body, 362145) //TODO
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(lr)
+	// defer response.Body.Close()
 
 	jr := jsonResponse{}
-	err = json.Unmarshal(buf.Bytes(), &jr)
+
+	if strings.Contains(path, "screenshot") {
+		lr := io.LimitReader(response.Body, 100000) //TODO
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(lr)
+
+		bodyString := buf.String() + `"}`
+
+		err = json.Unmarshal([]byte(bodyString), &jr)
+	} else {
+		decoder := json.NewDecoder(response.Body)
+		err = decoder.Decode(&jr)
+	}
+
 	if err != nil {
 		debugprint(err)
 		return "", nil, errors.New("error: response must be a JSON object")
 	}
 
-	debugprint("<< " + jr.RawSessionID + " " + string(jr.RawValue))
-
-	return jr.RawSessionID, []byte(jr.RawValue), nil
+	// debugprint("<< " + jr.RawSessionID + " " + string(jr.RawValue))
+	// fmt.Printf("doInternal:\n jr.RawSessionID: %v\n jr.RawValue: %s\n", jr.RawSessionID, jr.RawValue)
+	return jr.RawSessionID, jr.RawValue, nil
 }
 
 //Query the server's status.
