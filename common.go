@@ -6,13 +6,13 @@ package webdriver
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
-	"strings"
+	"time"
 )
 
 const (
@@ -164,7 +164,7 @@ func (w WebDriverCore) doInternal(params interface{}, method, path string) (stri
 
 	// proxyUrl, err := url.Parse("http://localhost:8888")
 	var client = &http.Client{
-		// Timeout:   time.Second * 10,
+		Timeout: time.Second * 10,
 		Transport: &http.Transport{
 			// Proxy:             http.ProxyURL(proxyUrl),
 			DisableKeepAlives: true,
@@ -176,10 +176,10 @@ func (w WebDriverCore) doInternal(params interface{}, method, path string) (stri
 		return "", nil, err
 	}
 
-	// ctx, cancel := context.WithTimeout(request.Context(), 10*time.Second)
-	// defer cancel()
+	ctx, cancel := context.WithTimeout(request.Context(), 10*time.Second)
+	defer cancel()
 
-	// request = request.WithContext(ctx)
+	request = request.WithContext(ctx)
 
 	response, err := client.Do(request)
 	if err != nil {
@@ -197,22 +197,9 @@ func (w WebDriverCore) doInternal(params interface{}, method, path string) (stri
 		return w.doInternal(nil, "GET", url.String())
 	}
 
-	// defer response.Body.Close()
-
 	jr := jsonResponse{}
-
-	if strings.Contains(path, "screenshot") {
-		lr := io.LimitReader(response.Body, 100000) //TODO
-		buf := new(bytes.Buffer)
-		buf.ReadFrom(lr)
-
-		bodyString := buf.String() + `"}`
-
-		err = json.Unmarshal([]byte(bodyString), &jr)
-	} else {
-		decoder := json.NewDecoder(response.Body)
-		err = decoder.Decode(&jr)
-	}
+	decoder := json.NewDecoder(response.Body)
+	err = decoder.Decode(&jr)
 
 	if err != nil {
 		debugprint(err)
@@ -220,7 +207,6 @@ func (w WebDriverCore) doInternal(params interface{}, method, path string) (stri
 	}
 
 	// debugprint("<< " + jr.RawSessionID + " " + string(jr.RawValue))
-	// fmt.Printf("doInternal:\n jr.RawSessionID: %v\n jr.RawValue: %s\n", jr.RawSessionID, jr.RawValue)
 	return jr.RawSessionID, jr.RawValue, nil
 }
 
