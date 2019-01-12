@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
-
 	//	"fmt"
 	//	"net/http"
 )
@@ -567,7 +566,12 @@ func (e WebElement) Text() (string, error) {
 		return "", err
 	}
 	var text string
+	var text2 map[string]interface{}
 	err = json.Unmarshal(data, &text)
+	if err != nil {
+		err = json.Unmarshal(data, &text2)
+		return text2["message"].(string), err
+	}
 	return text, err
 }
 
