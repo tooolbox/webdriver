@@ -164,7 +164,7 @@ func (w WebDriverCore) doInternal(params interface{}, method, path string) (stri
 
 	// proxyUrl, err := url.Parse("http://localhost:8888")
 	var client = &http.Client{
-		Timeout: time.Second * 10,
+		Timeout: time.Second * 60,
 		Transport: &http.Transport{
 			// Proxy:             http.ProxyURL(proxyUrl),
 			DisableKeepAlives: true,
@@ -176,7 +176,7 @@ func (w WebDriverCore) doInternal(params interface{}, method, path string) (stri
 		return "", nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(request.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(request.Context(), 60*time.Second)
 	defer cancel()
 
 	request = request.WithContext(ctx)
