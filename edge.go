@@ -46,7 +46,7 @@ func NewEdgeDriver(path string) *EdgeDriver {
 	d.Port = 17556
 	d.BaseUrl = ""
 	d.Threads = 4
-	d.LogPath = "Edgedriver.log"
+	d.LogPath = ""
 	d.StartTimeout = 20 * time.Second
 	return d
 }
