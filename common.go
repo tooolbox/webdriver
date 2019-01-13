@@ -206,6 +206,18 @@ func (w WebDriverCore) doInternal(params interface{}, method, path string) (stri
 		return "", nil, errors.New("error: response must be a JSON object")
 	}
 
+	if len(jr.RawSessionID) == 0 {
+		jr2 := jsonResponse{}
+		err := json.Unmarshal(jr.RawValue, &jr2)
+
+		if err != nil {
+			debugprint(err)
+			//return "", nil, errors.New("error: response must be a JSON object")
+		}
+		if len(jr2.RawSessionID) > 0 {
+			jr.RawSessionID = jr2.RawSessionID
+		}
+	}
 	// debugprint("<< " + jr.RawSessionID + " " + string(jr.RawValue))
 	return jr.RawSessionID, jr.RawValue, nil
 }
@@ -227,7 +239,7 @@ func (w WebDriverCore) newSession(desired, required Capabilities) (*Session, err
 	if desired == nil {
 		desired = map[string]interface{}{}
 	}
-	p := params{"desiredCapabilities": desired, "requiredCapabilities": required}
+	p := params{"desiredCapabilities": desired, "requiredCapabilities": required, "capabilities": desired}
 	sessionId, data, err := w.do(p, "POST", "/session")
 	if err != nil {
 		return nil, err
