@@ -69,6 +69,8 @@ func (d *EdgeDriver) Start() error {
 	d.url = fmt.Sprintf("http://localhost:%d%s", d.Port, d.BaseUrl)
 	var switches []string
 	switches = append(switches, "--port="+strconv.Itoa(d.Port))
+	// switches = append(switches, "--w3c=false")
+	switches = append(switches, "--jwp=true")
 	// switches = append(switches, "--verbose")
 	// switches = append(switches, "-log-path="+d.LogPath)
 	// switches = append(switches, "-http-threads="+strconv.Itoa(d.Threads))
