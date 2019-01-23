@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
+	"strings"
 	//	"fmt"
 	//	"net/http"
 )
@@ -285,7 +286,11 @@ func (s Session) Screenshot() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	reader := bytes.NewBuffer(data[1 : len(data)-1])
+
+	stringData := string(data)
+	stringDataFixed := strings.Replace(stringData, `\`, ``, -1)
+	stringDataBytes := []byte(stringDataFixed)
+	reader := bytes.NewBuffer(stringDataBytes[1 : len(stringDataBytes)-1])
 	decoder := base64.NewDecoder(base64.StdEncoding, reader)
 	return ioutil.ReadAll(decoder)
 }
