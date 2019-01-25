@@ -268,10 +268,11 @@ func (s Session) ExecuteScript(script string, args []interface{}) ([]byte, error
 	p := params{"script": script, "args": args}
 	var data []byte
 	var err error
-	capabilities := s.Capabilities["capabilities"].(map[string]interface{})
-	browserName := capabilities["browserName"].(string)
-	if browserName == "firefox" {
-		_, data, err = s.wd.do(p, "POST", "/session/%s/execute/sync", s.Id)
+	if capabilities, ok := s.Capabilities["capabilities"].(map[string]interface{}); ok {
+		browserName := capabilities["browserName"].(string)
+		if browserName == "firefox" {
+			_, data, err = s.wd.do(p, "POST", "/session/%s/execute/sync", s.Id)
+		}
 	} else {
 		_, data, err = s.wd.do(p, "POST", "/session/%s/execute", s.Id)
 	}
