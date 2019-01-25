@@ -266,7 +266,15 @@ func (s Session) Refresh() error {
 // Arguments may be any JSON-primitive, array, or JSON object. JSON objects that define a WebElement reference will be converted to the corresponding DOM element. Likewise, any WebElements in the script result will be returned to the client as WebElement JSON objects.
 func (s Session) ExecuteScript(script string, args []interface{}) ([]byte, error) {
 	p := params{"script": script, "args": args}
-	_, data, err := s.wd.do(p, "POST", "/session/%s/execute", s.Id)
+	var data []byte
+	var err error
+	capabilities := s.Capabilities["capabilities"].(map[string]interface{})
+	browserName := capabilities["browserName"].(string)
+	if browserName == "firefox" {
+		_, data, err = s.wd.do(p, "POST", "/session/%s/execute/sync", s.Id)
+	} else {
+		_, data, err = s.wd.do(p, "POST", "/session/%s/execute", s.Id)
+	}
 	return data, err
 }
 
@@ -483,6 +491,15 @@ func (s Session) FindElement(using FindElementStrategy, value string) (WebElemen
 	}
 	var elem element
 	err = json.Unmarshal(data, &elem)
+	var elem2 map[string]string
+	if len(elem.ELEMENT) == 0 {
+		err = json.Unmarshal(data, &elem2)
+		elemElement := ""
+		for _, val := range elem2 {
+			elemElement = val
+		}
+		return WebElement{&s, elemElement}, err
+	}
 	return WebElement{&s, elem.ELEMENT}, err
 }
 
@@ -582,13 +599,21 @@ func (e WebElement) Text() (string, error) {
 
 //Send a sequence of key strokes to an element.
 func (e WebElement) SendKeys(sequence string) error {
-	keys := make([]string, len(sequence))
-	for i, k := range sequence {
-		keys[i] = string(k)
+	capabilities := e.s.Capabilities["capabilities"].(map[string]interface{})
+	browserName := capabilities["browserName"].(string)
+	if browserName == "firefox" {
+		p := params{"text": sequence}
+		_, _, err := e.s.wd.do(p, "POST", "/session/%s/element/%s/value", e.s.Id, e.id)
+		return err
+	} else {
+		keys := make([]string, len(sequence))
+		for i, k := range sequence {
+			keys[i] = string(k)
+		}
+		p := params{"value": keys}
+		_, _, err := e.s.wd.do(p, "POST", "/session/%s/element/%s/value", e.s.Id, e.id)
+		return err
 	}
-	p := params{"value": keys}
-	_, _, err := e.s.wd.do(p, "POST", "/session/%s/element/%s/value", e.s.Id, e.id)
-	return err
 }
 
 //Send a sequence of key strokes to the active element.
