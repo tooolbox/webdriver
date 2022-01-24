@@ -70,7 +70,7 @@ func (d *SafariDriver) Start() error {
 	var switches []string
 	switches = append(switches, "--port="+strconv.Itoa(d.Port))
 	// switches = append(switches, "--w3c=false")
-	switches = append(switches, "--legacy")
+	// switches = append(switches, "--legacy")
 	// switches = append(switches, "--verbose")
 	// switches = append(switches, "-log-path="+d.LogPath)
 	// switches = append(switches, "-http-threads="+strconv.Itoa(d.Threads))
