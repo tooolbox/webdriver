@@ -600,8 +600,14 @@ func (e WebElement) Text() (string, error) {
 
 //Send a sequence of key strokes to an element.
 func (e WebElement) SendKeys(sequence string) error {
-	capabilities := e.s.Capabilities["capabilities"].(map[string]interface{})
-	browserName := capabilities["browserName"].(string)
+	capabilities := map[string]interface{}{}
+	if val, ok := e.s.Capabilities["capabilities"]; ok {
+		capabilities = val.(map[string]interface{})
+	}
+	var browserName string
+	if val, ok := capabilities["browserName"]; ok {
+		browserName = val.(string)
+	}
 	if browserName == "firefox" {
 		p := params{"text": sequence}
 		_, _, err := e.s.wd.do(p, "POST", "/session/%s/element/%s/value", e.s.Id, e.id)
