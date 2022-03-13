@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -82,8 +83,8 @@ type StackFrame struct {
 
 type CommandError struct {
 	StatusCode int
-	ErrorType  string
-	Message    string
+	ErrorType  string `json:"error"`
+	Message    string `json:"message"`
 	Screen     string
 	Class      string
 	StackTrace []StackFrame
@@ -98,9 +99,12 @@ func (e CommandError) Error() string {
 	if e.StatusCode == -1 {
 		m += "status code not specified"
 	} else if str, found := statusCodeStrings[e.StatusCode]; found {
-		m += str + ": " + e.Message
+		m += str
 	} else {
-		m += fmt.Sprintf("unknown status code (%d): %s", e.StatusCode, e.Message)
+		m += fmt.Sprintf("unknown status code (%d)", e.StatusCode)
+	}
+	if e.Message != "" {
+		m += ": " + e.Message
 	}
 	return m
 }
@@ -129,10 +133,11 @@ func parseError(c int, jr jsonResponse) error {
 	default:
 		responseCodeError = "Unknown error"
 	}
-	if jr.Status == 0 {
-		return &CommandError{StatusCode: -1, ErrorType: responseCodeError}
+	status := jr.Status
+	if status == 0 {
+		status = -1
 	}
-	commandError := &CommandError{StatusCode: jr.Status, ErrorType: responseCodeError}
+	commandError := &CommandError{StatusCode: status, ErrorType: responseCodeError}
 	err := json.Unmarshal(jr.RawValue, commandError)
 	if err != nil {
 		// workaround: firefox could returns a string instead of a JSON object on errors
@@ -191,6 +196,7 @@ func (w WebDriverCore) doInternal(params interface{}, method, path string) (stri
 			return "", nil, err
 		}
 	}
+	debugprint(">> " + string(jsonParams))
 
 	// proxyUrl, err := url.Parse("http://localhost:8888")
 	var client = &http.Client{
@@ -215,6 +221,7 @@ func (w WebDriverCore) doInternal(params interface{}, method, path string) (stri
 	if err != nil {
 		return "", nil, err
 	}
+	defer response.Body.Close()
 
 	debugprint("StatusCode: " + strconv.Itoa(response.StatusCode))
 	//http.Client doesn't follow POST redirected (/session command)
@@ -227,8 +234,14 @@ func (w WebDriverCore) doInternal(params interface{}, method, path string) (stri
 		return w.doInternal(nil, "GET", url.String())
 	}
 
+	buf := bytes.NewBuffer(nil)
+	if _, err := io.Copy(buf, response.Body); err != nil {
+		return "", nil, err
+	}
+	debugprint("raw buffer: " + buf.String())
+
 	jr := jsonResponse{}
-	decoder := json.NewDecoder(response.Body)
+	decoder := json.NewDecoder(buf)
 	err = decoder.Decode(&jr)
 
 	if err != nil {
@@ -252,7 +265,7 @@ func (w WebDriverCore) doInternal(params interface{}, method, path string) (stri
 			jr.RawSessionID = jr2.RawSessionID
 		}
 	}
-	// debugprint("<< " + jr.RawSessionID + " " + string(jr.RawValue))
+	debugprint("<< " + jr.RawSessionID + " " + string(jr.RawValue))
 	return jr.RawSessionID, jr.RawValue, nil
 }
 
