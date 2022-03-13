@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
+	"strconv"
 	"strings"
 	//	"fmt"
 	//	"net/http"
@@ -61,6 +62,7 @@ type Session struct {
 	Id           string
 	Capabilities Capabilities
 	wd           WebDriver
+	timeouts     params
 }
 
 type WindowHandle struct {
@@ -172,7 +174,32 @@ func (s Session) Delete() error {
 
 //Configure the amount of time that a particular type of operation can execute for before they are aborted and a |Timeout| error is returned to the client.  Valid values are: "script" for script timeouts, "implicit" for modifying the implicit wait timeout and "page load" for setting a page load timeout.
 func (s Session) SetTimeouts(typ string, ms int) error {
-	p := params{"type": typ, "ms": ms}
+	p := params{}
+	if capabilities, ok := s.Capabilities["capabilities"].(map[string]interface{}); ok {
+		browserName := capabilities["browserName"].(string)
+		browserVersion := capabilities["browserVersion"].(string)
+		bv, _ := strconv.ParseFloat(browserVersion, 64)
+		if browserName == "firefox" || (browserName == "Safari" && bv >= 12.0) {
+			if s.timeouts == nil {
+				s.timeouts = params{
+					"script":   30_000,
+					"pageLoad": 300_000,
+					"implicit": 0,
+				}
+			}
+			switch typ {
+			case "script", "implicit":
+				s.timeouts[typ] = ms
+			case "page load":
+				s.timeouts["pageLoad"] = ms
+			}
+			for k, v := range s.timeouts {
+				p[k] = v
+			}
+		}
+	} else {
+		p = params{"type": typ, "ms": ms}
+	}
 	_, _, err := s.wd.do(p, "POST", "/session/%s/timeouts", s.Id)
 	return err
 }
@@ -608,7 +635,11 @@ func (e WebElement) SendKeys(sequence string) error {
 	if val, ok := capabilities["browserName"]; ok {
 		browserName = val.(string)
 	}
-	if browserName == "firefox" {
+	var browserVersion float64
+	if val, ok := capabilities["browserVersion"]; ok {
+		browserVersion, _ = strconv.ParseFloat(val.(string), 64)
+	}
+	if browserName == "firefox" || (browserName == "Safari" && browserVersion >= 12.0) {
 		p := params{"text": sequence}
 		_, _, err := e.s.wd.do(p, "POST", "/session/%s/element/%s/value", e.s.Id, e.id)
 		return err
