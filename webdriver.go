@@ -297,7 +297,11 @@ func (s Session) ExecuteScript(script string, args []interface{}) ([]byte, error
 	var err error
 	if capabilities, ok := s.Capabilities["capabilities"].(map[string]interface{}); ok {
 		browserName := capabilities["browserName"].(string)
-		if browserName == "firefox" {
+		var browserVersion float64
+		if val, ok := capabilities["browserVersion"]; ok {
+			browserVersion, _ = strconv.ParseFloat(val.(string), 64)
+		}
+		if browserName == "firefox" || (browserName == "Safari" && browserVersion >= 12.0) {
 			_, data, err = s.wd.do(p, "POST", "/session/%s/execute/sync", s.Id)
 		}
 	} else {
