@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"strconv"
 	"strings"
@@ -236,7 +237,20 @@ func (s Session) WindowHandle() (WindowHandle, error) {
 
 //Retrieve the list of all window handles available to the session.
 func (s Session) WindowHandles() ([]WindowHandle, error) {
-	_, data, err := s.wd.do(nil, "GET", "/session/%s/window_handles", s.Id)
+	var browserName string
+	var browserVersion float64
+	if capabilities, ok := s.Capabilities["capabilities"].(map[string]interface{}); ok {
+		browserName = capabilities["browserName"].(string)
+		bv := capabilities["browserVersion"].(string)
+		browserVersion, _ = strconv.ParseFloat(bv, 64)
+	}
+	var err error
+	var data []byte
+	if browserName == "Safari" && browserVersion >= 12.0 {
+		_, data, err = s.wd.do(nil, "GET", "/session/%s/window/handles", s.Id)
+	} else {
+		_, data, err = s.wd.do(nil, "GET", "/session/%s/window_handles", s.Id)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -405,9 +419,51 @@ func (s Session) FocusParentFrame() error {
 
 //Change focus to another window. The window to change focus to may be specified by its server assigned window handle, or by the value of its name attribute.
 func (s Session) FocusOnWindow(name string) error {
-	p := params{"name": name}
-	_, _, err := s.wd.do(p, "POST", "/session/%s/window", s.Id)
-	return err
+	var browserName string
+	var browserVersion float64
+	if capabilities, ok := s.Capabilities["capabilities"].(map[string]interface{}); ok {
+		browserName = capabilities["browserName"].(string)
+		if bv, ok := capabilities["browserVersion"]; ok {
+			browserVersion, _ = strconv.ParseFloat(bv.(string), 64)
+		}
+	}
+	if browserName == "Safari" && browserVersion >= 12.0 {
+		handles, err := s.WindowHandles()
+		if err != nil {
+			return fmt.Errorf("FocusOnWindow failed to get handles: %w", err)
+		}
+		for _, h := range handles {
+			if err := h.SwitchTo(); err != nil {
+				return fmt.Errorf("FocusOnWindow failed to switch to handle `%s`: %w", h.id, err)
+			}
+			u, err := s.GetUrl()
+			if err != nil {
+				return fmt.Errorf("FocusOnWindow failed to get url: %w", err)
+			}
+			if u == name {
+				return nil
+			}
+			title, err := s.Title()
+			if err != nil {
+				return fmt.Errorf("FocusOnWindow failed to get title: %w", err)
+			}
+			if title == name {
+				return nil
+			}
+			b, err := s.ExecuteScript(`window.name`, []interface{}{})
+			if err != nil {
+				return fmt.Errorf("FocusOnWindow failed to get window name: %w", err)
+			}
+			if string(b) == name {
+				return nil
+			}
+		}
+		return fmt.Errorf("FocusOnWindow found no window matching `%s`", name)
+	} else {
+		p := params{"name": name}
+		_, _, err := s.wd.do(p, "POST", "/session/%s/window", s.Id)
+		return err
+	}
 }
 
 //Close the current window.
@@ -456,6 +512,17 @@ func (w WindowHandle) GetPosition() (Position, error) {
 func (w WindowHandle) MaximizeWindow() error {
 	_, _, err := w.s.wd.do(nil, "POST", "/session/%s/window/%s/maximize", w.s.Id, w.id)
 	return err
+}
+
+//Maximize the specified window if not already maximized.
+func (w WindowHandle) SwitchTo() error {
+	p := params{"handle": w.id}
+	_, _, err := w.s.wd.do(p, "POST", "/session/%s/window", w.s.Id)
+	return err
+}
+
+func (w WindowHandle) Id() string {
+	return w.id
 }
 
 //Retrieve all cookies visible to the current page.
